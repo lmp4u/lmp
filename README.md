@@ -1,4 +1,4 @@
-# LMP: Language Model Prompt
+# LMP: Language Model Prompt (RFC - NOT RELEASED)
 
 LMP: A spec, file format, and parser for giving large language models context about your projects
 
@@ -590,8 +590,6 @@ See individual implementation directories for language-specific contribution gui
 For specification changes, please open an issue to discuss before submitting a PR.
 
 ## License
-
-[MIT License](LICENSE) - Use it anywhere, contribute back if you can.
 
 The LMP specification is freely available to encourage adoption across tools and platforms.
 
