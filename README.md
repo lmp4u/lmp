@@ -4,7 +4,7 @@ LMP: A spec, file format, and parser for giving large language models context ab
 
 ## What is LMP?
 
-LMP (Language Model Prompt) files combine human-readable documentation with machine-parseable configuration to provide rich context to AI coding assistants.
+LMP (Language Model Prompt) files combine human-readable documentation with machine-parseable configuration to provide rich context to large language models.
 
 **Problem**: Explaining your codebase to AI tools is tedious and inconsistent  
 **Solution**: `.lmp` file(s) that captures your project's context perfectly
@@ -65,15 +65,8 @@ npm install -g lmp4u
 # Python
 pip install lmp4u
 
-# Go
-go install github.com/lmp-format/lmp@latest
-
 # Rust
 cargo install lmp4u
-
-# Or download pre-built binaries
-curl -L https://github.com/lmp-format/lmp/releases/latest/download/lmp-linux-x64 -o lmp
-chmod +x lmp && sudo mv lmp /usr/local/bin/
 ```
 
 ### 2. Create a .lmp file
@@ -87,23 +80,46 @@ This creates a `.lmp` file with smart defaults based on your project structure.
 ### 3. Generate context
 
 ```bash
-lmp .
+lmp .                    # Output to console
+lmp . --save             # Save as <project-name>.lmpc
+lmp . --output my.lmpc   # Save with custom name
 ```
 
-This outputs rich context that you can copy-paste to any AI coding assistant.
+This creates an `.lmpc` (LMP Context) file - the compiled context ready for AI tools.
 
 ### 4. Use with AI tools
 
 ```bash
-# Save for later use
-lmp . --output context.md
-
 # Copy to clipboard (macOS)
-lmp . | pbcopy
+cat my-project.lmpc | pbcopy
 
-# Integrate with your workflow
-lmp . --output .github/ai-context.md
+# View the context
+cat my-project.lmpc
+
+# Send to AI tool
+curl -X POST api.openai.com/chat \
+  -d "$(cat my-project.lmpc)"
 ```
+
+## File Types
+
+### `.lmp` - Source Files
+
+Human-authored files that define what context to include:
+
+- **Markdown documentation** (optional)
+- **Structured configuration** (optional)
+- **Version controlled** ✅
+- **Hand-edited** ✅
+
+### `.lmpc` - Generated Context Files
+
+Machine-generated files containing the actual context for AI tools:
+
+- **Rich context output** ready for LLMs
+- **Generated from .lmp files**
+- **Usually ignored in git** (like `.gitignore` includes `*.lmpc`)
+- **Recognized by IDE extensions** for easy AI integration
 
 ## Real-World Examples
 
@@ -263,7 +279,7 @@ ai_context:
 ```
 ````
 
-### Go CLI Tool
+### Rust CLI Tool
 
 ````markdown
 # Kubernetes Deployment Tool
@@ -286,63 +302,46 @@ name = "k8s-deploy"
 description = "Kubernetes deployment automation tool"
 
 [tech_stack]
-language = "Go 1.21"
-framework = "Cobra CLI"
-kubernetes = "client-go v0.28"
-config = "Viper"
+language = "Rust 1.70"
+framework = "Clap CLI"
+kubernetes = "kube-rs"
+config = "serde"
 
 [[include]]
-path = "./cmd/"
+path = "./src/"
 type = "dir"
-patterns = ["*.go"]
-description = "CLI commands and subcommands"
+patterns = ["*.rs"]
+exclude = ["*test*.rs"]
+description = "Main application source"
 
 [[include]]
-path = "./pkg/"
-type = "dir"
-patterns = ["*.go"]
-exclude = ["*_test.go"]
-description = "Core application packages"
-
-[[include]]
-path = "./internal/"
-type = "dir"
-patterns = ["*.go"]
-exclude = ["*_test.go"]
-description = "Internal application logic"
-
-[[include]]
-path = "./go.mod"
+path = "./Cargo.toml"
 type = "file"
 
 [[include]]
-path = "./go.sum"
+path = "./Cargo.lock"
 type = "file"
 
 [conventions]
-code_style = "gofmt, golint clean, effective Go principles"
-cli_design = "Cobra framework with consistent flag naming and help text"
-error_handling = "Wrap errors with context, fail fast with clear messages"
-testing = "Table-driven tests, testify for assertions, mock external dependencies"
-packaging = "Clear separation between cmd/, pkg/, and internal/"
+code_style = "rustfmt, clippy clean, idiomatic Rust"
+cli_design = "Clap derive API with consistent flag naming and help text"
+error_handling = "anyhow for errors, structured logging with tracing"
+testing = "Unit tests with proptest for property testing"
 
 [ai_context]
 focus_areas = ["CLI design patterns", "Kubernetes API usage", "error handling"]
 domain_knowledge = ["Kubernetes concepts", "GitOps workflows", "deployment strategies"]
-go_patterns = ["interfaces for testability", "context for cancellation", "structured logging"]
+rust_patterns = ["async/await", "error propagation with ?", "type-driven design"]
 ```
 ````
 
 ## Language Support
 
-| Language               | Package Name                | CLI Command | Status    |
-| ---------------------- | --------------------------- | ----------- | --------- |
-| **JavaScript/Node.js** | `lmp4u`                     | `lmp`       | ✅ Stable |
-| **Python**             | `lmp4u`                     | `lmp`       | ✅ Stable |
-| **Go**                 | `github.com/lmp-format/lmp` | `lmp`       | ✅ Stable |
-| **Rust**               | `lmp4u`                     | `lmp`       | ✅ Stable |
-| **Java**               | `com.lmp:lmp4u`             | `lmp`       | 🔄 Beta   |
-| **C#/.NET**            | `LMP4U`                     | `lmp`       | 🔄 Beta   |
+| Language               | Package Name | CLI Command | Status  |
+| ---------------------- | ------------ | ----------- | ------- |
+| **JavaScript/Node.js** | `lmp4u`      | `lmp`       | 🔄 Beta |
+| **Python**             | `lmp4u`      | `lmp`       | 🔄 Beta |
+| **Rust**               | `lmp4u`      | `lmp`       | 🔄 Beta |
 
 All implementations provide identical CLI interfaces and output formats.
 
@@ -394,6 +393,8 @@ interface LMPConfig {
     domain_knowledge?: string[];
     avoid?: string[];
     patterns_to_follow?: string[];
+    performance_considerations?: string[];
+    security_notes?: string[];
   };
 
   // Legacy/simple fields
@@ -415,7 +416,8 @@ lmp preview [path]           # Preview what would be included
 ### Options
 
 ```bash
---output, -o FILE            # Save to file instead of stdout
+--output, -o FILE            # Save to specific file
+--save, -s                   # Auto-generate filename: <project>.lmpc
 --verbose, -v                # Show detailed logging
 --max-tokens NUMBER          # Token limit (default: 50000)
 --format FORMAT              # Output format: markdown, json
@@ -425,11 +427,31 @@ lmp preview [path]           # Preview what would be included
 ### Examples
 
 ```bash
-lmp . --output context.md    # Save context to file
-lmp . --verbose             # See what files are being processed
-lmp . --max-tokens 100000   # Increase token limit
-lmp init --template react   # Create React-specific template
-lmp validate --fix          # Auto-fix common issues
+lmp .                        # Output to console
+lmp . --save                 # Creates: <project-name>.lmpc
+lmp . --output context.lmpc  # Custom filename
+lmp . --verbose              # See what files are being processed
+lmp . --max-tokens 100000    # Increase token limit
+lmp init --template react    # Create React-specific template
+lmp validate --fix           # Auto-fix common issues
+```
+
+### Scope Control
+
+Run `lmp` from different directories to control scope:
+
+```bash
+# Whole project context
+cd my-project/
+lmp . --save                 # Creates: my-project.lmpc
+
+# Frontend component only
+cd my-project/frontend/
+lmp . --save                 # Creates: frontend.lmpc
+
+# Specific module
+cd my-project/backend/auth/
+lmp . --save                 # Creates: auth.lmpc
 ```
 
 ## Integration Examples
@@ -449,12 +471,12 @@ jobs:
       - name: Generate LMP context
         run: |
           npm install -g lmp4u
-          lmp . --output docs/ai-context.md
+          lmp . --output docs/ai-context.lmpc
       - name: Commit updated context
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          git add docs/ai-context.md
+          git add docs/ai-context.lmpc
           git commit -m "Update AI context" || exit 0
           git push
 ```
@@ -465,8 +487,18 @@ jobs:
 #!/bin/sh
 # .git/hooks/pre-commit
 lmp validate || exit 1
-lmp . --output .github/ai-context.md
-git add .github/ai-context.md
+lmp . --output .github/ai-context.lmpc
+git add .github/ai-context.lmpc
+```
+
+### .gitignore Integration
+
+```gitignore
+# Ignore generated context files (like build artifacts)
+*.lmpc
+
+# But keep specific ones if needed
+!docs/project-context.lmpc
 ```
 
 ### VS Code Integration
@@ -478,12 +510,25 @@ git add .github/ai-context.md
       "label": "Generate LMP Context",
       "type": "shell",
       "command": "lmp",
-      "args": [".", "--output", "context.md"],
-      "group": "build"
+      "args": [".", "--save"],
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "silent"
+      }
     }
   ]
 }
 ```
+
+### IDE Extension Support
+
+Future IDE extensions will recognize `.lmpc` files and provide:
+
+- **Syntax highlighting** for rich context files
+- **"Send to AI" buttons** for quick integration
+- **Auto-generation** when `.lmp` files change
+- **Context preview** without opening large files
 
 ## Project Structure
 
@@ -494,12 +539,11 @@ lmp/
 ├── implementations/       # Language implementations
 │   ├── javascript/        # Node.js parser
 │   ├── python/           # Python parser
-│   ├── go/               # Go parser
 │   └── rust/             # Rust parser
 └── examples/             # Example .lmp files
     ├── react-project.lmp
     ├── python-api.lmp
-    └── go-cli.lmp
+    └── rust-cli.lmp
 ```
 
 ## Development
@@ -509,11 +553,16 @@ Each implementation has its own development environment:
 ```bash
 cd implementations/javascript && nix develop
 cd implementations/python && nix develop
-cd implementations/go && nix develop
 cd implementations/rust && nix develop
 ```
 
 ## FAQ
+
+**Q: What's the difference between `.lmp` and `.lmpc` files?**
+A: `.lmp` files are source files you write (like source code). `.lmpc` files are generated context files for AI tools (like compiled binaries).
+
+**Q: Should I commit `.lmpc` files to git?**
+A: Usually no - they're generated files. Add `*.lmpc` to `.gitignore` like you would with `dist/` or `build/` directories. Exception: you might commit specific context files for documentation.
 
 **Q: How is LMP different from README files?**
 A: README files are for humans. LMP files are structured for both humans AND machines, with precise include/exclude rules for generating AI context.
@@ -525,7 +574,7 @@ A: Yes! LMP supports hierarchical contexts - place .lmp files in subdirectories 
 A: LMP parsers are fast - typically under 100ms for medium-sized projects. File content is only read when explicitly included.
 
 **Q: Does LMP work with monorepos?**
-A: Absolutely! Place .lmp files at different levels of your monorepo to provide context for different components.
+A: Absolutely! Place .lmp files at different levels of your monorepo and run `lmp` from different directories to get context for specific components.
 
 **Q: How do I handle sensitive information?**
 A: Use exclude patterns to skip sensitive files, or place .lmp files in subdirectories that don't contain secrets.
@@ -536,12 +585,15 @@ See individual implementation directories for language-specific contribution gui
 
 - [JavaScript](implementations/javascript/README.md)
 - [Python](implementations/python/README.md)
-- [Go](implementations/go/README.md)
 - [Rust](implementations/rust/README.md)
 
 For specification changes, please open an issue to discuss before submitting a PR.
 
-The LMP specification is public domain to encourage adoption across tools and platforms.
+## License
+
+[MIT License](LICENSE) - Use it anywhere, contribute back if you can.
+
+The LMP specification is freely available to encourage adoption across tools and platforms.
 
 ---
 

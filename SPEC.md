@@ -28,13 +28,16 @@ Large Language Models require context to effectively assist with code-related ta
 
 ## 2. File Format
 
-### 2.1 File Extension
+### 2.1 File Extensions
 
-LMP files use the `.lmp` extension following the three-letter convention for file extensions.
+LMP defines two file types:
 
-### 2.2 File Structure
+- **`.lmp`** - Source files (human-authored, version controlled)
+- **`.lmpc`** - Context files (machine-generated, usually git-ignored)
 
-An LMP file consists of two optional sections:
+### 2.2 LMP Source File Structure
+
+An LMP source file (`.lmp`) consists of two optional sections:
 
 1. **Documentation Section**: Free-form Markdown content
 2. **Configuration Section**: Structured data in JSON, YAML, or TOML format
@@ -69,9 +72,31 @@ Supported code fence languages:
 - `yaml` or `yml` - YAML configuration
 - `toml` - TOML configuration
 
-### 2.4 Minimal Examples
+### 2.4 LMP Context File Structure
 
-**Documentation only:**
+An LMP context file (`.lmpc`) contains the generated output ready for consumption by AI tools:
+
+```markdown
+# LLM Context
+
+## Metadata
+
+- Generated: [timestamp]
+- Source: [.lmp files used]
+- Token count: [estimate]
+
+## Project Documentation
+
+[Merged documentation from .lmp files]
+
+## Included Files
+
+[File contents with syntax highlighting]
+```
+
+### 2.5 Minimal Examples
+
+**Documentation only (.lmp):**
 
 ```markdown
 # My Project
@@ -79,7 +104,7 @@ Supported code fence languages:
 This project implements a task management system.
 ```
 
-**Configuration only:**
+**Configuration only (.lmp):**
 
 ```json
 {
@@ -88,7 +113,7 @@ This project implements a task management system.
 }
 ```
 
-**Combined:**
+**Combined (.lmp):**
 
 ````markdown
 # My Project
@@ -109,16 +134,40 @@ This project implements a task management system.
 
 ```typescript
 interface LMPConfig {
-  name?: string; // Project name
-  description?: string; // Brief description
-  version?: string; // Project version
+  // Project metadata
+  name?: string;
+  description?: string;
+  version?: string;
 
-  include: IncludeEntry[]; // Files/directories to include
-  exclude?: string[]; // Global exclusion patterns
+  // Core functionality
+  include: IncludeEntry[];
+  exclude?: string[];
 
-  context?: ContextOptions; // Parser configuration
-  conventions?: Record<string, string>; // Code conventions
-  ai_instructions?: string; // AI-specific guidance
+  // Rich project context
+  tech_stack?: Record<string, string>;
+  conventions?: Record<string, string>;
+  ai_context?: AIContext;
+
+  // Parser configuration
+  context?: ContextOptions;
+
+  // Legacy/simple field
+  ai_instructions?: string;
+}
+
+interface AIContext {
+  focus_areas?: string[];
+  domain_knowledge?: string[];
+  avoid?: string[];
+  patterns_to_follow?: string[];
+  performance_considerations?: string[];
+  security_notes?: string[];
+}
+
+interface ContextOptions {
+  max_tokens?: number;
+  merge_strategy?: "inherit" | "replace" | "append";
+  output_format?: "markdown" | "json";
 }
 ```
 
@@ -141,17 +190,7 @@ interface IncludeEntry {
 }
 ```
 
-### 3.3 Context Options
-
-```typescript
-interface ContextOptions {
-  max_tokens?: number; // Token limit (default: 50000)
-  merge_strategy?: "inherit" | "replace" | "append"; // Multi-file merge strategy
-  output_format?: "markdown" | "json"; // Output format preference
-}
-```
-
-### 3.4 Path Resolution
+### 3.3 Path Resolution
 
 All paths in `include` entries are resolved relative to the directory containing the LMP file.
 
@@ -161,7 +200,7 @@ All paths in `include` entries are resolved relative to the directory containing
 - `../shared/` - Parent directory
 - `/absolute/path` - Absolute path (discouraged for portability)
 
-### 3.5 Pattern Matching
+### 3.4 Pattern Matching
 
 The `patterns` field supports glob-style patterns:
 
@@ -178,7 +217,7 @@ The `patterns` field supports glob-style patterns:
 - `["src/**/*.{js,ts}"]` - JS/TS files in src directory
 - `["*.test.*"]` - Test files with any extension
 
-### 3.6 Exclusion Patterns
+### 3.5 Exclusion Patterns
 
 Exclusions can be specified at two levels:
 
@@ -198,7 +237,8 @@ Exclusion patterns use the same glob syntax as inclusion patterns.
     "dist/",
     "build/",
     "__pycache__/",
-    "target/"
+    "target/",
+    "*.lmpc"
   ]
 }
 ```
@@ -225,9 +265,28 @@ LMP parsers discover `.lmp` files using hierarchical traversal:
 **replace**: Child contexts completely replace parent contexts  
 **append**: Child contexts append to parent contexts
 
+### 4.4 Scope Control
+
+The scope of context generation is determined by where the command is executed:
+
+```bash
+# Whole project context
+cd /project-root && lmp .
+
+# Component-specific context
+cd /project-root/frontend && lmp .
+
+# Module-specific context
+cd /project-root/backend/auth && lmp .
+```
+
+Each execution finds all relevant `.lmp` files in the hierarchy and generates context appropriate to that scope.
+
 ## 5. Output Format
 
 ### 5.1 Standard Output Structure
+
+Generated `.lmpc` files follow this structure:
 
 ```markdown
 # LLM Context
@@ -267,13 +326,12 @@ Each included file is formatted as:
 ```
 ````
 
-````
-
 Language detection is based on file extension using common mappings.
 
 ### 5.3 Token Estimation
 
 Parsers should provide token count estimates using the approximation:
+
 - 1 token ≈ 4 characters for English text
 - Adjust for specific model tokenizers when known
 
@@ -288,12 +346,13 @@ lmp [path]                   # Generate context (default command)
 lmp init [path]              # Initialize new .lmp file
 lmp validate [file]          # Validate .lmp file syntax
 lmp preview [path]           # Preview what would be included
-````
+```
 
 ### 6.2 Standard Options
 
 ```bash
---output, -o FILE            # Output to file instead of stdout
+--output, -o FILE            # Output to specific file
+--save, -s                   # Auto-generate filename: <directory>.lmpc
 --verbose, -v                # Enable verbose logging
 --quiet, -q                  # Suppress non-essential output
 --max-tokens, -t NUMBER      # Override token limit
@@ -301,7 +360,30 @@ lmp preview [path]           # Preview what would be included
 --dry-run, -n                # Show actions without executing
 ```
 
-### 6.3 Exit Codes
+### 6.3 Output Behavior
+
+**Default (no output flags)**: Output to stdout
+
+```bash
+lmp .                        # Print context to terminal
+lmp . | pbcopy              # Pipe to clipboard
+```
+
+**Explicit file output**:
+
+```bash
+lmp . --output context.lmpc  # Save to specific file
+lmp . -o my-context.lmpc    # Short form
+```
+
+**Auto-generated filename**:
+
+```bash
+lmp . --save                 # Creates: <current-directory-name>.lmpc
+cd my-project && lmp . --save # Creates: my-project.lmpc
+```
+
+### 6.4 Exit Codes
 
 - `0` - Success
 - `1` - General error (file not found, parse error, etc.)
@@ -335,13 +417,11 @@ LMP files should not include:
 - Internal network configurations
 - Proprietary algorithms (unless intentionally shared)
 
+**Recommendation**: Add `*.lmpc` to `.gitignore` to prevent accidental commit of generated context files.
+
 ## 8. Validation
 
-### 8.1 JSON Schema
-
-A formal JSON schema is provided at `spec/schema.json` for validation tools.
-
-### 8.2 Validation Rules
+### 8.1 Validation Rules
 
 **Required validations:**
 
@@ -357,219 +437,124 @@ A formal JSON schema is provided at `spec/schema.json` for validation tools.
 - Warn on potential token limit exceeded
 - Warn on common misconfigurations
 
-## 9. Extensibility
+### 8.2 Common Issues
 
-### 9.1 Reserved Fields
+**Auto-fixable issues**:
 
-The following field names are reserved for future specification versions:
+- Missing trailing slashes on directory paths
+- Common typos in field names
+- Invalid glob patterns
 
-- `spec_version`
-- `schema_url`
-- `extensions`
-- `metadata`
+**Warning conditions**:
 
-### 9.2 Custom Fields
+- Large number of included files
+- Very large individual files
+- Potential token limit exceeded
 
-Implementations may support custom fields using vendor prefixes:
+## 9. Best Practices
 
-- `x-vendor-field` - Vendor-specific extensions
-- `_internal_field` - Implementation-internal fields
+### 9.1 File Organization
 
-### 9.3 Version Compatibility
+**Source files (.lmp)**:
 
-Future specification versions will maintain backward compatibility:
+- Place root `.lmp` at project root for global context
+- Use component-specific `.lmp` files for complex modules
+- Keep descriptions concise but informative
+- Version control all `.lmp` files
 
-- New optional fields may be added
-- Existing field semantics will not change
-- Deprecated fields will be marked before removal
+**Generated files (.lmpc)**:
+
+- Add `*.lmpc` to `.gitignore`
+- Generate as needed, don't commit
+- Use descriptive filenames for manual generation
+- Clean up old context files periodically
+
+### 9.2 Configuration Guidelines
+
+**Include patterns**:
+
+- Be selective with includes - more isn't always better
+- Use exclusion patterns liberally for large projects
+- Set appropriate token limits for your use case
+- Document why specific files are included
+
+**Context content**:
+
+- Focus on architectural decisions and "why" not "what"
+- Include domain-specific knowledge the LLM wouldn't know
+- Document conventions and patterns to follow
+- Avoid sensitive information
+
+### 9.3 Workflow Integration
+
+**Development workflow**:
+
+```bash
+# Generate context when starting work on a feature
+cd my-project/frontend
+lmp . --save
+
+# Send to AI tool
+cat frontend.lmpc | pbcopy
+```
+
+**CI/CD integration**:
+
+```yaml
+# Auto-update context files
+- run: lmp . --output docs/project-context.lmpc
+```
 
 ## 10. Examples
 
-### 10.1 React TypeScript Project
-
-````markdown
-# E-commerce Frontend
-
-Modern React application with TypeScript and Tailwind.
-
-## Architecture
-
-- State: Zustand for client state, React Query for server state
-- Routing: React Router v6
-- Styling: Tailwind CSS with custom design system
-- Testing: Jest + React Testing Library
+### 10.1 Complete Example
 
 ```json
 {
-  "name": "E-commerce Frontend",
+  "name": "E-commerce API",
+  "description": "FastAPI backend with PostgreSQL",
   "version": "2.1.0",
+  "tech_stack": {
+    "framework": "FastAPI",
+    "language": "Python 3.11",
+    "database": "PostgreSQL 15",
+    "cache": "Redis",
+    "deployment": "Docker + Kubernetes"
+  },
   "include": [
     {
-      "path": "./src/",
+      "path": "./app/",
       "type": "dir",
-      "patterns": ["*.tsx", "*.ts", "*.css"],
-      "exclude": ["*.test.tsx", "*.stories.tsx"],
-      "description": "Main application source code"
+      "patterns": ["*.py"],
+      "exclude": ["*_test.py"],
+      "description": "Main application code"
     },
     {
-      "path": "./package.json",
+      "path": "./requirements.txt",
       "type": "file",
-      "description": "Dependencies and build scripts"
-    },
-    {
-      "path": "./tailwind.config.js",
-      "type": "file",
-      "description": "Tailwind CSS configuration"
+      "description": "Python dependencies"
     }
   ],
-  "exclude": ["node_modules/", ".next/", "dist/", "*.log"],
+  "exclude": ["__pycache__/", "*.pyc", ".env*"],
   "conventions": {
-    "components": "Functional components with hooks, prefer composition",
-    "styling": "Tailwind CSS classes, custom components in design system",
-    "state": "Zustand stores for global state, local state for component-specific",
-    "testing": "Test user interactions, not implementation details"
+    "code_style": "Black formatting, type hints required",
+    "api_design": "RESTful with consistent error responses",
+    "testing": "Pytest with factory pattern for test data"
   },
-  "ai_instructions": "Follow existing patterns for component structure. Use TypeScript strictly. Prefer React Query for server state management."
+  "ai_context": {
+    "focus_areas": ["async/await patterns", "database relationships"],
+    "domain_knowledge": ["e-commerce workflows", "payment processing"],
+    "avoid": ["synchronous database calls", "hardcoded credentials"],
+    "patterns_to_follow": ["dependency injection", "repository pattern"],
+    "performance_considerations": [
+      "database query optimization",
+      "caching strategies"
+    ],
+    "security_notes": ["JWT token validation", "input sanitization"]
+  },
+  "context": {
+    "max_tokens": 75000,
+    "merge_strategy": "inherit"
+  }
 }
 ```
-````
-
-### 10.2 Python FastAPI Service
-
-````markdown
-# Task Management API
-
-RESTful API built with FastAPI, PostgreSQL, and Redis.
-
-## Features
-
-- JWT authentication with refresh tokens
-- Real-time WebSocket notifications
-- Background task processing with Celery
-- OpenAPI documentation
-
-```yaml
-name: "Task Management API"
-description: "FastAPI backend with PostgreSQL and Redis"
-include:
-  - path: "./app/"
-    type: "dir"
-    patterns: ["*.py"]
-    exclude: ["*_test.py", "test_*.py"]
-    description: "Application source code"
-  - path: "./requirements.txt"
-    type: "file"
-    description: "Python dependencies"
-  - path: "./docker-compose.yml"
-    type: "file"
-    description: "Development environment setup"
-
-exclude:
-  - "__pycache__/"
-  - ".pytest_cache/"
-  - "*.pyc"
-  - ".env"
-
-conventions:
-  code_style: "Black formatting, isort imports, type hints required"
-  api_style: "RESTful endpoints with consistent error responses"
-  database: "SQLAlchemy with Alembic migrations"
-  testing: "Pytest with async test client"
-
-ai_instructions: |
-  Use async/await for all database operations. Follow FastAPI best practices 
-  for dependency injection. Include proper error handling and validation.
-```
-````
-
-### 10.3 Go CLI Application
-
-````markdown
-# Kubernetes Deployment Tool
-
-Command-line tool for managing Kubernetes deployments with GitOps workflow.
-
-```toml
-name = "k8s-deploy"
-description = "Kubernetes deployment automation tool"
-
-[[include]]
-path = "./cmd/"
-type = "dir"
-patterns = ["*.go"]
-description = "CLI commands"
-
-[[include]]
-path = "./pkg/"
-type = "dir"
-patterns = ["*.go"]
-exclude = ["*_test.go"]
-description = "Core packages"
-
-[[include]]
-path = "./go.mod"
-type = "file"
-
-[[include]]
-path = "./go.sum"
-type = "file"
-
-[context]
-max_tokens = 75000
-
-[conventions]
-code_style = "gofmt, golint clean, effective Go principles"
-cli_style = "Cobra framework with consistent flag naming"
-error_handling = "Wrap errors with context, fail fast principle"
-testing = "Table-driven tests, testify for assertions"
-```
-````
-
-## 11. Implementation Notes
-
-### 11.1 Performance Considerations
-
-- **Lazy loading**: Only read file contents when explicitly included
-- **Caching**: Cache file metadata to avoid repeated filesystem calls
-- **Streaming**: Support streaming output for large contexts
-- **Concurrency**: Parallelize file reading where appropriate
-
-### 11.2 Error Handling
-
-- **Graceful degradation**: Continue processing if individual files fail
-- **Clear error messages**: Include file paths and line numbers in errors
-- **Validation feedback**: Provide actionable feedback for configuration errors
-
-### 11.3 Cross-Platform Compatibility
-
-- **Path separators**: Handle both `/` and `\` path separators
-- **File encoding**: Default to UTF-8, handle BOM markers
-- **Line endings**: Normalize line endings in output
-- **Case sensitivity**: Handle case-insensitive filesystems appropriately
-
-## 12. Reference Implementation
-
-The canonical reference implementation is provided in JavaScript/Node.js at `implementations/javascript/`. All other implementations should match its behavior for compatibility.
-
-## 13. Conformance
-
-An implementation conforms to this specification if it:
-
-1. Supports all required configuration fields
-2. Implements the standard CLI interface
-3. Produces compatible output format
-4. Passes the official test suite
-5. Handles all specified error conditions
-
-## 14. Changelog
-
-### Version 1.0 (Initial Release)
-
-- Core file format specification
-- Configuration schema definition
-- CLI interface standardization
-- Security and validation requirements
-
----
-
-This specification is released under CC0 (Public Domain) to encourage widespread adoption across tools and platforms.
